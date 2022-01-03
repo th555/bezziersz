@@ -13,23 +13,31 @@ pr.set_config_flags(pr.FLAG_MSAA_4X_HINT) # Enable anti-aliasing
 pr.init_window(*size, 'bezziersz')
 pr.set_target_fps(fps)
 
-inout = 0
-lines = 1
-clen = 8
-zoom = 0
-speeds = [
-    (0.1, 0.1),
-    (0.1, 1),
-    (1, 0.1),
-    (1, 1),
-    (1, 10),
-    (10, 1),
-    (10, 10),
-    (10, 50),
-    (50, 10),
-]
-speed = speeds[0]
-close = 0
+rseed = random.random()
+print(f'seed: {rseed}')
+
+class Globals:
+    inout = 0
+    lines = 1
+    clen = 8
+    zoom = 0
+    speeds = [
+        (0.1, 0.1),
+        (0.1, 1),
+        (1, 0.1),
+        (1, 1),
+        (1, 10),
+        (10, 1),
+        (10, 10),
+        (10, 50),
+        (50, 10),
+    ]
+    speed = speeds[0]
+    close = 0
+    def __init__(s):
+        random.seed(rseed)
+
+g = Globals()
 
 
 def midpoint(p1, p2):
@@ -49,7 +57,7 @@ class Point:
         and its own speed is ignored.
         '''
         s.pos = pos
-        s.speed = (random.gauss(0, speed[0]), random.gauss(0, speed[1]))
+        s.speed = (random.gauss(0, g.speed[0]), random.gauss(0, g.speed[1]))
 
     def draw(s):
         pr.draw_circle_v(s.pos, lw/2, (0,0,0,255))
@@ -137,17 +145,17 @@ class Bezier:
         lin1 = list(zip(*[np.linspace(xy1, xy2, num, True).astype(int) for xy1, xy2 in zip(s.start.pos, s.mid.pos)]))
         lin2 = list(zip(*[np.linspace(xy1, xy2, num, True).astype(int) for xy1, xy2 in zip(s.mid.pos, s.end.pos)]))
         poly = [[float(np.linspace(xy1, xy2, num, True)[i]) for xy1, xy2 in zip(lin1[i], lin2[i])] for i in range(num)]
-        if inout == 0:
+        if g.inout == 0:
             s.bezier_points = [s.mid.pos] + poly
             s.bezier_points2 = [s.mid.pos] + poly[::-1]
-        elif inout == 1:
+        elif g.inout == 1:
             s.bezier_points = [] + poly
             s.bezier_points2 = [] + poly[::-1]
 
     def draw(s):
         pr.draw_triangle_fan(s.bezier_points, len(s.bezier_points), s.colour)
         pr.draw_triangle_fan(s.bezier_points2, len(s.bezier_points2), s.colour)
-        if lines == 1:
+        if g.lines == 1:
             pr.draw_line_ex(s.start.pos, s.mid.pos, lw2, (0,0,0,255))
             pr.draw_line_ex(s.mid.pos, s.end.pos, lw2, (0,0,0,255))
             pr.draw_line_bezier_quad(s.start.pos, s.end.pos, s.mid.pos, lw, (0,0,0,255))
@@ -219,17 +227,17 @@ def reset(fixed_bg=True):
     else:
         bgcol = colours.rand_from_palette()
     curve.reset()
-    if zoom:
-        for _ in range(clen+3):
+    if g.zoom:
+        for _ in range(g.clen+3):
             x = random.randrange(-size[0], 2*size[0])
             y = random.randrange(-size[1], 2*size[1])
             curve.add_point((x,y))
     else:
-        for _ in range(clen):
+        for _ in range(g.clen):
             x = random.randrange(size[0])
             y = random.randrange(size[1])
             curve.add_point((x,y))
-    if close:
+    if g.close:
         curve.close()
 
 reset()
@@ -243,23 +251,23 @@ while not pr.window_should_close():
     if pr.is_key_pressed(pr.KEY_SPACE):
         reset()
     if pr.is_key_pressed(pr.KEY_Q):
-        inout = not inout
+        g.inout = not g.inout
         curve.update()
     if pr.is_key_pressed(pr.KEY_W):
-        lines = not lines
+        g.lines = not g.lines
     if pr.is_key_pressed(pr.KEY_E):
-        zoom = not zoom
+        g.zoom = not g.zoom
         reset()
     if pr.is_key_pressed(pr.KEY_R):
-        i = speeds.index(speed)
-        speed = speeds[(i+1)%len(speeds)]
+        i = g.speeds.index(g.speed)
+        g.speed = g.speeds[(i+1)%len(g.speeds)]
         reset()
     if pr.is_key_pressed(pr.KEY_F):
-        i = speeds.index(speed)
-        speed = speeds[(i-1)%len(speeds)]
+        i = g.speeds.index(g.speed)
+        g.speed = g.speeds[(i-1)%len(g.speeds)]
         reset()
     if pr.is_key_pressed(pr.KEY_T):
-        close = not close
+        g.close = not g.close
         reset()
     if pr.is_key_pressed(pr.KEY_Y):
         bez = random.choice(curve.beziers)
