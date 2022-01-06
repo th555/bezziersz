@@ -1,6 +1,11 @@
 import pyray as pr
+
 import numpy as np
 import random
+import datetime
+import subprocess
+from collections import deque
+
 import colours
 
 size = (1280, 800)
@@ -16,6 +21,8 @@ pr.set_target_fps(fps)
 rseed = random.random()
 print(f'seed: {rseed}')
 
+t0 = 0
+
 class Globals:
     inout = 0
     lines = 1
@@ -25,10 +32,10 @@ class Globals:
         (0.1, 0.1),
         (0.1, 1),
         (1, 0.1),
-        (1, 1),
         (1, 10),
         (10, 1),
-        (10, 10),
+        (5, 20),
+        (20, 5),
         (10, 50),
         (50, 10),
     ]
@@ -215,6 +222,7 @@ class Curve:
 
 
 
+
 curve = Curve()
 
 def reset(fixed_bg=True):
@@ -228,7 +236,7 @@ def reset(fixed_bg=True):
         bgcol = colours.rand_from_palette()
     curve.reset()
     if g.zoom:
-        for _ in range(g.clen+3):
+        for _ in range(g.clen+6):
             x = random.randrange(-size[0], 2*size[0])
             y = random.randrange(-size[1], 2*size[1])
             curve.add_point((x,y))
@@ -240,7 +248,155 @@ def reset(fixed_bg=True):
     if g.close:
         curve.close()
 
+
+class Recorder:
+    def __init__(s):
+        s.recording = False
+        s.t0 = 0
+        s.events = deque()
+
+        s.audio = 'sound/gallery.mp3'
+        s.fname = str(datetime.datetime.now()).replace(':','_').replace('-','_').replace(' ','_').split('.')[0]
+
+        # s.ffmpeg = f"ffmpeg -r {fps} -f rawvideo -pix_fmt rgb24 -s {size[0]}x{size[1]} -i - -an -c:v libvpx -y {s.fname}.webm"
+        # s.ffmpeg = f"ffmpeg -r {fps} -f rawvideo -pix_fmt rgb24 -s {size[0]}x{size[1]} -y -i - -c:v libx264 -profile:v baseline -level 3.0 -pix_fmt yuv420p {s.fname}.mp4"
+        s.ffmpeg = f"ffmpeg -r {fps} -f rawvideo -pix_fmt rgba -s {size[0]}x{size[1]} -y -i - -c:v libx264 -crf 17 -pix_fmt yuv420p -preset veryslow -tune animation {s.fname}.mp4"
+
+    def start_recording(s):
+        global g
+        if not s.recording:
+            pr.init_audio_device()
+            s.sound = pr.load_sound(s.audio)
+            pr.play_sound(s.sound)
+
+            s.t0 = pr.get_time()
+            s.recording = True
+
+            g = Globals()
+            reset()
+
+    def writeframe(s):
+        # img = pr.load_image_from_screen()
+        img = pr.load_image_from_texture(s.texture.texture)
+        data_size = img.width * img.height * 4
+        img_bytes = pr.ffi.unpack(pr.ffi.cast("char*", img.data), data_size)
+        s.ffmpeg_process.stdin.write(img_bytes)
+
+    def replay(s):
+        global g
+        g = Globals()
+        reset()
+
+        s.recording = False
+        s.ffmpeg_process = subprocess.Popen(s.ffmpeg, stdin=subprocess.PIPE, shell=True)
+
+        frame = 0
+        dobreak = False
+        s.texture = pr.load_render_texture(*size)
+        print(s.texture)
+        while True:
+            t = frame/fps
+
+            while t >= s.events[0][0]:
+                key = s.events.popleft()[1]
+                if key == 'stop!':
+                    dobreak = True
+                    break
+                s.handle_event(key)
+            
+            advance_frame(s.texture)
+            s.writeframe()
+            frame += 1
+            if dobreak:
+                break
+        pr.unload_render_texture(s.texture)
+        
+        s.ffmpeg_process.stdin.close()
+        s.ffmpeg_process.wait()
+
+        joined_fname = s.audio.split('.')[0].split('/')[-1]+'_'+s.fname+'.mp4'
+        proc2 = subprocess.Popen(f'ffmpeg -i {s.fname}.mp4 -i {s.audio} -c:v copy -c:a copy {joined_fname}', stdin=subprocess.PIPE, shell=True)
+        proc2.wait()
+        print(joined_fname)
+
+        exit()
+
+
+    def now(s):
+        return pr.get_time() - s.t0
+
+    def handle_event(s, key):
+        rec_key = True
+        if key == pr.KEY_LEFT_BRACKET:
+            s.start_recording()
+            rec_key = False # Don't record this one...
+        if key == pr.KEY_RIGHT_BRACKET:
+            s.events.append((s.now(), "stop!"))
+            if s.recording:
+                s.replay()
+
+        match key:
+            case pr.KEY_SPACE:
+                reset()
+            case pr.KEY_Q:
+                g.inout = not g.inout
+                curve.update()
+            case pr.KEY_W:
+                g.lines = not g.lines
+            case pr.KEY_E:
+                g.zoom = not g.zoom
+                reset()
+            case pr.KEY_R:
+                i = g.speeds.index(g.speed)
+                g.speed = g.speeds[(i+1)%len(g.speeds)]
+                reset()
+            case pr.KEY_F:
+                i = g.speeds.index(g.speed)
+                g.speed = g.speeds[(i-1)%len(g.speeds)]
+                reset()
+            case pr.KEY_T:
+                g.close = not g.close
+                reset()
+            case pr.KEY_Y:
+                pts = [c.mid for c in curve.beziers]
+                if not g.close:
+                    pts += [curve.beziers[0].start, curve.beziers[-1].end]
+                pt = random.choice(pts)
+                if g.zoom:
+                    x = random.randrange(-size[0], 2*size[0])
+                    y = random.randrange(-size[1], 2*size[1])
+                else:
+                    x = random.randrange(size[0])
+                    y = random.randrange(size[1])
+                pt.pos = (x, y)
+            case _:
+                rec_key = False
+
+        if rec_key and s.recording:
+            s.events.append((s.now(), key))
+
+rec = Recorder()
+
 reset()
+
+def advance_frame(texture=None):
+    global curve
+    curve.move()
+    curve.update()
+
+    if texture:
+        pr.begin_texture_mode(texture)
+    else:
+        pr.begin_drawing()
+
+    pr.clear_background(bgcol)
+    curve.draw()
+
+    if texture:
+        pr.end_texture_mode()
+    else:
+        pr.end_drawing()
+
 
 while not pr.window_should_close():
 
@@ -248,42 +404,14 @@ while not pr.window_should_close():
         v = pr.get_mouse_position()
         curve.add_point((v.x, v.y))
 
-    if pr.is_key_pressed(pr.KEY_SPACE):
-        reset()
-    if pr.is_key_pressed(pr.KEY_Q):
-        g.inout = not g.inout
-        curve.update()
-    if pr.is_key_pressed(pr.KEY_W):
-        g.lines = not g.lines
-    if pr.is_key_pressed(pr.KEY_E):
-        g.zoom = not g.zoom
-        reset()
-    if pr.is_key_pressed(pr.KEY_R):
-        i = g.speeds.index(g.speed)
-        g.speed = g.speeds[(i+1)%len(g.speeds)]
-        reset()
-    if pr.is_key_pressed(pr.KEY_F):
-        i = g.speeds.index(g.speed)
-        g.speed = g.speeds[(i-1)%len(g.speeds)]
-        reset()
-    if pr.is_key_pressed(pr.KEY_T):
-        g.close = not g.close
-        reset()
-    if pr.is_key_pressed(pr.KEY_Y):
-        bez = random.choice(curve.beziers)
-        x = random.randrange(size[0])
-        y = random.randrange(size[1])
-        bez.mid.pos = (x, y)
+    keys = []
+    while(key := pr.get_key_pressed()):
+        keys.append(key)
 
+    for key in keys:
+        rec.handle_event(key)
+     
+    advance_frame()
 
-
-    curve.move()
-    curve.update()
-
-    pr.begin_drawing()
-    pr.clear_background(bgcol)
-    # pr.draw_rectangle_gradient_v(0, 0, size[0], size[1], bgcol, colours.active_palette[1]+(255,))
-    curve.draw()
-    pr.end_drawing()
 
 pr.close_window()
