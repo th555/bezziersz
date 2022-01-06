@@ -149,10 +149,19 @@ class Bezier:
 
     def update_bezier_points(s):
         ''' Manually calculate bezier points and store the resulting triangle fans for later drawing. '''
-        num = 24
-        lin1 = list(zip(*[np.linspace(xy1, xy2, num, True).astype(int) for xy1, xy2 in zip(s.start.pos, s.mid.pos)]))
-        lin2 = list(zip(*[np.linspace(xy1, xy2, num, True).astype(int) for xy1, xy2 in zip(s.mid.pos, s.end.pos)]))
-        poly = [[float(np.linspace(xy1, xy2, num, True)[i]) for xy1, xy2 in zip(lin1[i], lin2[i])] for i in range(num)]
+        num = 64
+        ax, ay = s.start.pos
+        bx, by = s.mid.pos
+        cx, cy = s.end.pos
+        lin1x = np.linspace(ax, bx, num, True)
+        lin1y = np.linspace(ay, by, num, True)
+        lin2x = np.linspace(bx, cx, num, True)
+        lin2y = np.linspace(by, cy, num, True)
+        px = lin1x + (lin2x - lin1x)/(num-1)*np.arange(num)
+        py = lin1y + (lin2y - lin1y)/(num-1)*np.arange(num)
+        poly = np.dstack((px, py)).tolist()[0]
+
+
         if g.inout == 0:
             s.bezier_points = [s.mid.pos] + poly
             s.bezier_points2 = [s.mid.pos] + poly[::-1]
