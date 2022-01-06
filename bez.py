@@ -14,7 +14,8 @@ lw = 5 #linewidth
 lw2 = 2
 bgcol = (255,255,255,255)
 
-pr.set_config_flags(pr.FLAG_MSAA_4X_HINT) # Enable anti-aliasing
+pr.set_trace_log_level(pr.LOG_WARNING | pr.LOG_ERROR)
+# pr.set_config_flags(pr.FLAG_MSAA_4X_HINT) # Enable anti-aliasing
 pr.init_window(*size, 'bezziersz')
 pr.set_target_fps(fps)
 
@@ -258,8 +259,8 @@ class Recorder:
         s.audio = 'sound/gallery.mp3'
         s.fname = str(datetime.datetime.now()).replace(':','_').replace('-','_').replace(' ','_').split('.')[0]
 
-        # s.ffmpeg = f"ffmpeg -r {fps} -f rawvideo -pix_fmt rgb24 -s {size[0]}x{size[1]} -i - -an -c:v libvpx -y {s.fname}.webm"
-        # s.ffmpeg = f"ffmpeg -r {fps} -f rawvideo -pix_fmt rgb24 -s {size[0]}x{size[1]} -y -i - -c:v libx264 -profile:v baseline -level 3.0 -pix_fmt yuv420p {s.fname}.mp4"
+        # s.ffmpeg = f"ffmpeg -r {fps} -f rawvideo -pix_fmt rgba -s {size[0]}x{size[1]} -i - -an -c:v libvpx -y {s.fname}.webm"
+        # s.ffmpeg = f"ffmpeg -r {fps} -f rawvideo -pix_fmt rgba -s {size[0]}x{size[1]} -y -i - -c:v libx264 -profile:v baseline -level 3.0 -pix_fmt yuv420p {s.fname}.mp4"
         s.ffmpeg = f"ffmpeg -r {fps} -f rawvideo -pix_fmt rgba -s {size[0]}x{size[1]} -y -i - -c:v libx264 -crf 17 -pix_fmt yuv420p -preset veryslow -tune animation {s.fname}.mp4"
 
     def start_recording(s):
@@ -276,24 +277,26 @@ class Recorder:
             reset()
 
     def writeframe(s):
-        # img = pr.load_image_from_screen()
         img = pr.load_image_from_texture(s.texture.texture)
         data_size = img.width * img.height * 4
         img_bytes = pr.ffi.unpack(pr.ffi.cast("char*", img.data), data_size)
         s.ffmpeg_process.stdin.write(img_bytes)
+        pr.unload_image(img) # Don't forget!
 
     def replay(s):
         global g
         g = Globals()
         reset()
 
+        pr.stop_sound(s.sound)
         s.recording = False
         s.ffmpeg_process = subprocess.Popen(s.ffmpeg, stdin=subprocess.PIPE, shell=True)
 
         frame = 0
         dobreak = False
+        # Have to render to texture because directly grabbing the screen results in stuttering.
+        # Unfortunately no anti-aliasing in this case.
         s.texture = pr.load_render_texture(*size)
-        print(s.texture)
         while True:
             t = frame/fps
 
@@ -315,7 +318,7 @@ class Recorder:
         s.ffmpeg_process.wait()
 
         joined_fname = s.audio.split('.')[0].split('/')[-1]+'_'+s.fname+'.mp4'
-        proc2 = subprocess.Popen(f'ffmpeg -i {s.fname}.mp4 -i {s.audio} -c:v copy -c:a copy {joined_fname}', stdin=subprocess.PIPE, shell=True)
+        proc2 = subprocess.Popen(f'ffmpeg -i {s.fname}.mp4 -i {s.audio} -c:v copy -c:a copy -shortest {joined_fname}', stdin=subprocess.PIPE, shell=True)
         proc2.wait()
         print(joined_fname)
 
