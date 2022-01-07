@@ -10,9 +10,11 @@ import colours
 
 size = (1280, 800)
 fps = 60
-lw = 5 #linewidth
-lw2 = 2
+lw = 2 #linewidth
+lw2 = 0
 bgcol = (255,255,255,255)
+linecol = (255,255,255,255)
+opacity = 12
 
 pr.set_trace_log_level(pr.LOG_WARNING | pr.LOG_ERROR)
 # pr.set_config_flags(pr.FLAG_MSAA_4X_HINT) # Enable anti-aliasing
@@ -25,14 +27,18 @@ print(f'seed: {rseed}')
 t0 = 0
 
 class Globals:
-    inout = 0
-    lines = 1
-    clen = 8
+    inout = 1
+    lines = 0
+    clen = 6
     zoom = 0
     speeds = [
         (0.1, 0.1),
         (0.1, 1),
         (1, 0.1),
+        (0.1, 2),
+        (2, 0.1),
+        (0.1, 5),
+        (5, 0.1),
         (1, 10),
         (10, 1),
         (5, 20),
@@ -41,7 +47,7 @@ class Globals:
         (50, 10),
     ]
     speed = speeds[0]
-    close = 0
+    close = 1
     def __init__(s):
         random.seed(rseed)
 
@@ -59,7 +65,12 @@ def add(p1, p2):
     return (x, y)
 
 
-class Point:
+class Drawable:
+    def draw(s):
+        pr.draw_circle_gradient(int(s.pos[0]), int(s.pos[1]), 20, (255,255,255,255), (255,0,0,255))
+
+
+class Point(Drawable):
     def __init__(s, pos):
         ''' If between is defined, the point moves to always be at the midpoint of these two points
         and its own speed is ignored.
@@ -67,14 +78,11 @@ class Point:
         s.pos = pos
         s.speed = (random.gauss(0, g.speed[0]), random.gauss(0, g.speed[1]))
 
-    def draw(s):
-        pr.draw_circle_v(s.pos, lw/2, (0,0,0,255))
-
     def move(s):
         s.pos = add(s.pos, s.speed)
 
 
-class Midpoint:
+class Midpoint(Drawable):
     def __init__(s, a, b):
         '''A point between a and b'''
         s.a = a
@@ -108,7 +116,7 @@ class Bezier:
         s.complete = True # set complete so the s.end assignment calls update_bezier_points
         s.end = end
 
-        s.colour = colours.rand_from_palette(exclude=bgcol) + (200,)
+        s.colour = colours.rand_from_palette(exclude=bgcol) + (opacity,)
         s.colour2 = colours.rand_from_palette(exclude=bgcol) + (255,)
         s.colour3 = colours.rand_from_palette(exclude=bgcol) + (255,)
 
@@ -175,7 +183,8 @@ class Bezier:
         if g.lines == 1:
             pr.draw_line_ex(s.start.pos, s.mid.pos, lw2, (0,0,0,255))
             pr.draw_line_ex(s.mid.pos, s.end.pos, lw2, (0,0,0,255))
-            pr.draw_line_bezier_quad(s.start.pos, s.end.pos, s.mid.pos, lw, (0,0,0,255))
+            pr.draw_line_bezier_quad(s.start.pos, s.end.pos, s.mid.pos, lw, linecol)
+
 
     def move(s):
         for p in s.points:
@@ -246,7 +255,7 @@ def reset(fixed_bg=True):
         bgcol = colours.rand_from_palette()
     curve.reset()
     if g.zoom:
-        for _ in range(g.clen+6):
+        for _ in range(g.clen):
             x = random.randrange(-size[0], 2*size[0])
             y = random.randrange(-size[1], 2*size[1])
             curve.add_point((x,y))
@@ -265,7 +274,7 @@ class Recorder:
         s.t0 = 0
         s.events = deque()
 
-        s.audio = 'sound/gallery.mp3'
+        s.audio = 'sound/brimble.mp3'
         s.fname = str(datetime.datetime.now()).replace(':','_').replace('-','_').replace(' ','_').split('.')[0]
 
         # s.ffmpeg = f"ffmpeg -r {fps} -f rawvideo -pix_fmt rgba -s {size[0]}x{size[1]} -i - -an -c:v libvpx -y {s.fname}.webm"
@@ -381,6 +390,12 @@ class Recorder:
                     x = random.randrange(size[0])
                     y = random.randrange(size[1])
                 pt.pos = (x, y)
+            case pr.KEY_MINUS:
+                g.clen -= 1
+                reset()
+            case pr.KEY_EQUAL:
+                g.clen += 1
+                reset()
             case _:
                 rec_key = False
 
@@ -401,7 +416,8 @@ def advance_frame(texture=None):
     else:
         pr.begin_drawing()
 
-    pr.clear_background(bgcol)
+    # pr.clear_background(bgcol)
+    pr.draw_rectangle_v((0,0),size, (*bgcol,10))
     curve.draw()
 
     if texture:

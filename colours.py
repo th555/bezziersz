@@ -25,8 +25,11 @@ def rand_rgb():
 
 def rand_from_palette(exclude=None):
     pal = active_palette.copy()
-    if len(pal) > 1 and exclude is not None:
-        pal.remove(exclude)
+    try:
+        if len(pal) > 1 and exclude is not None:
+            pal.remove(exclude)
+    except ValueError:
+        pass
     return random.choice(pal)
 
 randomize_palette()
