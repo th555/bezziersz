@@ -11,7 +11,7 @@ import colours
 size = (1280, 800)
 fps = 60
 lw = 2 #linewidth
-lw2 = 0
+lw2 = 1
 bgcol = (255,255,255,255)
 linecol = (255,255,255,255)
 opacity = 12 # Set to 255 for normal opaque curves
