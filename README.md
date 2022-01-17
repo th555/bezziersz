@@ -1,4 +1,4 @@
-Music visualization. Press keys to change parameters and/or generate a new random scene. Depends on pyray and numpy, and ffmpeg if you want to export a video.
+Music visualization. Press keys to change parameters and/or generate a new random scene. Depends on pyray and numpy, and ffmpeg if you want to export a video. Colour patterns are taken from the wonderful book [Spectrum](https://thamesandhudson.com/spectrum-9780500480267).
 
 
 How to run
@@ -23,6 +23,7 @@ Screenshots
 Videos
 ------
 [Gallery](https://www.youtube.com/watch?v=tWOhCoADZGA)
+
 [Brimble](https://www.youtube.com/watch?v=n0vmiiZhm7I)
 
 Usage
