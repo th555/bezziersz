@@ -1,0 +1,8 @@
+
+"""
+ideas:
+ - big knotty curve with points moved by boids algo
+ - move points in 3d then project back to 2d
+ - two closed loops with coloured bands between them
+"""
+

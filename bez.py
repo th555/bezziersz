@@ -14,24 +14,28 @@ lw = 2 #linewidth
 lw2 = 0
 bgcol = (255,255,255,255)
 linecol = (255,255,255,255)
-opacity = 12
+opacity = 12 # Set to 255 for normal opaque curves
 
 pr.set_trace_log_level(pr.LOG_WARNING | pr.LOG_ERROR)
-# pr.set_config_flags(pr.FLAG_MSAA_4X_HINT) # Enable anti-aliasing
+# pr.set_config_flags(pr.FLAG_MSAA_4X_HINT) # Enable anti-aliasing, but doesn't work when recording sadly
 pr.init_window(*size, 'bezziersz')
 pr.set_target_fps(fps)
 
 rseed = random.random()
-print(f'seed: {rseed}')
+print(f'seed: {rseed}') # For reproducibility
+
+
 
 t0 = 0
 
 class Globals:
-    inout = 1
-    lines = 0
-    clen = 6
-    zoom = 0
-    speeds = [
+    """ Storage of parameters that can be changed by button mashing. In addition to these some other keys have effect too,
+    see README.md """
+    inout = 1   # Toggle whether to fill the inside or outside part of the curve (key: Q)
+    lines = 0   # Toggle whether to draw lines (curve and bezier control lines) (key: W)
+    clen = 6    # Curve length in number of segments (clen - 1 when closed, clen - 2 when open) (keys: + and - )
+    zoom = 0    # Zoomed in or not (key: E)
+    speeds = [  # Pairs of speeds in x and y direction (keys: R and F)
         (0.1, 0.1),
         (0.1, 1),
         (1, 0.1),
@@ -47,7 +51,7 @@ class Globals:
         (50, 10),
     ]
     speed = speeds[0]
-    close = 1
+    close = 1   # Open-ended or closed loop curve (key: T)
     def __init__(s):
         random.seed(rseed)
 
@@ -72,9 +76,6 @@ class Drawable:
 
 class Point(Drawable):
     def __init__(s, pos):
-        ''' If between is defined, the point moves to always be at the midpoint of these two points
-        and its own speed is ignored.
-        '''
         s.pos = pos
         s.speed = (random.gauss(0, g.speed[0]), random.gauss(0, g.speed[1]))
 
@@ -274,7 +275,7 @@ class Recorder:
         s.t0 = 0
         s.events = deque()
 
-        s.audio = 'sound/brimble.mp3'
+        s.audio = 'sound/brimble.mp3' # Set sound here!
         s.fname = str(datetime.datetime.now()).replace(':','_').replace('-','_').replace(' ','_').split('.')[0]
 
         # s.ffmpeg = f"ffmpeg -r {fps} -f rawvideo -pix_fmt rgba -s {size[0]}x{size[1]} -i - -an -c:v libvpx -y {s.fname}.webm"
@@ -416,8 +417,11 @@ def advance_frame(texture=None):
     else:
         pr.begin_drawing()
 
+
+    # Swap these two lines to disable the fade out effect
     # pr.clear_background(bgcol)
     pr.draw_rectangle_v((0,0),size, (*bgcol,10))
+
     curve.draw()
 
     if texture:
